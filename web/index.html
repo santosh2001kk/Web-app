@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Panel Detector</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3d;
+    --accent: #3b82f6;
+    --accent2: #10b981;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface);
+  }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header span { font-size: 12px; color: var(--muted); padding: 2px 8px; border: 1px solid var(--border); border-radius: 99px; }
+
+  .main { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 57px); }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+
+  .drop-zone {
+    margin: 16px;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: #1e2a3a; }
+  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-zone .icon { font-size: 32px; margin-bottom: 8px; }
+  .drop-zone p { font-size: 13px; color: var(--muted); }
+  .drop-zone p strong { color: var(--text); }
+
+  .section { padding: 0 16px 16px; }
+  .section label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+  .mode-tabs { display: flex; gap: 6px; }
+  .mode-tab {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .mode-tab:hover { border-color: var(--accent); color: var(--text); }
+  .mode-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .btn {
+    display: block; width: 100%; padding: 12px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.green { background: var(--accent2); }
+
+  .preview-wrap { margin: 16px; position: relative; border-radius: 10px; overflow: hidden; background: #0a0d14; }
+  .preview-wrap img { width: 100%; height: 180px; object-fit: contain; display: block; }
+  .preview-wrap.hidden { display: none; }
+
+  #results-panel { padding: 16px; flex: 1; overflow-y: auto; }
+  #results-panel h3 { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+
+  .detection-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+    transition: border-color 0.15s;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .detection-card:hover { border-color: var(--accent); }
+  .detection-card.highlighted { border-color: var(--accent); background: #1e2a3a; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-label { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 600; margin-right: 4px;
+  }
+  .badge-comp { background: #1e3a5f; color: #60a5fa; }
+  .badge-struct { background: #1a3325; color: #34d399; }
+
+  .summary-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; margin-bottom: 12px; font-size: 12px; color: var(--muted); line-height: 1.6;
+  }
+
+  .spinner {
+    display: none; width: 18px; height: 18px; border: 2px solid #ffffff40;
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
+    margin: 0 auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Canvas area ── */
+  .canvas-area {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; overflow: auto; background: var(--bg);
+  }
+  .canvas-wrap { position: relative; display: inline-block; }
+  #main-canvas { display: block; border-radius: 8px; max-width: 100%; max-height: calc(100vh - 105px); }
+  #overlay-canvas {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none;
+    border-radius: 8px;
+  }
+
+  .empty-state {
+    text-align: center; color: var(--muted);
+  }
+  .empty-state .big { font-size: 56px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  .status-bar {
+    position: fixed; bottom: 16px; right: 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px; font-size: 12px;
+    color: var(--muted); display: none; align-items: center; gap: 8px;
+  }
+  .status-bar.show { display: flex; }
+
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Panel Detector</h1>
+  <span>Gemini AI</span>
+</header>
+
+<div class="main">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*"/>
+      <div class="icon">📷</div>
+      <p><strong>Click or drag</strong> an image here</p>
+      <p>JPG, PNG, WEBP — up to 20MB</p>
+    </div>
+
+    <div class="preview-wrap hidden" id="preview-wrap">
+      <img id="preview-img" src="" alt="preview"/>
+    </div>
+
+    <div class="section">
+      <label>Detection Mode</label>
+      <div class="mode-tabs">
+        <button class="mode-tab" data-mode="fast">Fast</button>
+        <button class="mode-tab active" data-mode="standard">Standard</button>
+        <button class="mode-tab" data-mode="expert">Expert</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <button class="btn" id="detect-btn" disabled>
+        <span id="btn-text">Detect Components</span>
+        <div class="spinner" id="btn-spinner"></div>
+      </button>
+    </div>
+
+    <div id="results-panel">
+      <div id="results-content"></div>
+    </div>
+
+  </aside>
+
+  <!-- ── Canvas ── -->
+  <main class="canvas-area" id="canvas-area">
+    <div class="empty-state" id="empty-state">
+      <div class="big">⚡</div>
+      <p>Upload a panel image to start detection</p>
+    </div>
+    <div class="canvas-wrap" id="canvas-wrap" style="display:none">
+      <canvas id="main-canvas"></canvas>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
+  </main>
+
+</div>
+
+<div class="status-bar" id="status-bar">
+  <div class="spinner" style="display:block;border-color:#3b82f640;border-top-color:#3b82f6"></div>
+  <span id="status-text">Analysing…</span>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let currentFile = null;
+let currentBase64 = null;
+let detections = [];
+let selectedIdx = -1;
+let mode = 'standard';
+
+// ── Colours ────────────────────────────────────────────────────────────────
+const PALETTE = [
+  '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6',
+  '#06b6d4','#ec4899','#84cc16','#f97316','#6366f1',
+];
+function colorFor(idx, alpha = 1) {
+  const hex = PALETTE[idx % PALETTE.length];
+  if (alpha === 1) return hex;
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── File handling ──────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const previewWrap = document.getElementById('preview-wrap');
+const previewImg = document.getElementById('preview-img');
+const detectBtn = document.getElementById('detect-btn');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  currentFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentBase64 = e.target.result;
+    previewImg.src = currentBase64;
+    previewWrap.classList.remove('hidden');
+    detectBtn.disabled = false;
+    // Draw image on canvas
+    loadImageToCanvas(currentBase64);
+    // Clear old results
+    detections = [];
+    clearOverlay();
+    document.getElementById('results-content').innerHTML = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Canvas ─────────────────────────────────────────────────────────────────
+const mainCanvas = document.getElementById('main-canvas');
+const overlayCanvas = document.getElementById('overlay-canvas');
+const canvasWrap = document.getElementById('canvas-wrap');
+const emptyState = document.getElementById('empty-state');
+const mainCtx = mainCanvas.getContext('2d');
+const overlayCtx = overlayCanvas.getContext('2d');
+
+function loadImageToCanvas(src) {
+  const img = new Image();
+  img.onload = () => {
+    const maxW = document.getElementById('canvas-area').clientWidth - 48;
+    const maxH = window.innerHeight - 105;
+    const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+    mainCanvas.width = Math.round(img.width * scale);
+    mainCanvas.height = Math.round(img.height * scale);
+    overlayCanvas.width = mainCanvas.width;
+    overlayCanvas.height = mainCanvas.height;
+    overlayCanvas.style.width = mainCanvas.width + 'px';
+    overlayCanvas.style.height = mainCanvas.height + 'px';
+    mainCtx.drawImage(img, 0, 0, mainCanvas.width, mainCanvas.height);
+    emptyState.style.display = 'none';
+    canvasWrap.style.display = 'inline-block';
+  };
+  img.src = src;
+}
+
+function clearOverlay() {
+  overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+}
+
+function n2px(val, dim) { return (val / 1000) * dim; }
+
+function drawDetections(highlight = -1) {
+  clearOverlay();
+  detections.forEach((d, i) => {
+    const [yn, xn, yx, xx] = d.box_2d;
+    const x = n2px(xn, overlayCanvas.width);
+    const y = n2px(yn, overlayCanvas.height);
+    const w = n2px(xx - xn, overlayCanvas.width);
+    const h = n2px(yx - yn, overlayCanvas.height);
+    if (w < 2 || h < 2) return;
+
+    const col = colorFor(i);
+    const isStruct = d.category === 'structure';
+    const alpha = (highlight === -1 || highlight === i) ? 0.18 : 0.05;
+    const lw = (highlight === i) ? 3 : isStruct ? 1.5 : 2;
+
+    overlayCtx.fillStyle = colorFor(i, alpha);
+    overlayCtx.fillRect(x, y, w, h);
+
+    overlayCtx.strokeStyle = col;
+    overlayCtx.lineWidth = lw;
+    overlayCtx.setLineDash(isStruct ? [8, 4] : []);
+    overlayCtx.strokeRect(x, y, w, h);
+    overlayCtx.setLineDash([]);
+
+    // Label chip
+    const tag = buildTag(d);
+    overlayCtx.font = 'bold 11px Inter,system-ui,sans-serif';
+    const tw = overlayCtx.measureText(tag).width + 10;
+    const th = 18;
+    overlayCtx.fillStyle = col;
+    overlayCtx.fillRect(x, y, tw, th);
+    overlayCtx.fillStyle = '#fff';
+    overlayCtx.fillText(tag, x + 5, y + 13);
+  });
+}
+
+function buildTag(d) {
+  const parts = [d.label];
+  if (d.rating) parts.push(d.rating);
+  if (d.brand) parts.push(d.brand);
+  return parts.join(' · ');
+}
+
+// ── Mode tabs ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    mode = tab.dataset.mode;
+  });
+});
+
+// ── Detect ─────────────────────────────────────────────────────────────────
+detectBtn.addEventListener('click', async () => {
+  if (!currentBase64) return;
+  setLoading(true);
+
+  try {
+    const base64 = currentBase64.split(',')[1] || currentBase64;
+    const res = await fetch(`/api/detect?mode=${mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64 }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    detections = data.detections || [];
+    renderResults(data);
+    drawDetections();
+  } catch (err) {
+    alert('Detection failed: ' + err.message);
+  } finally {
+    setLoading(false);
+  }
+});
+
+function setLoading(on) {
+  detectBtn.disabled = on;
+  document.getElementById('btn-text').style.display = on ? 'none' : 'block';
+  document.getElementById('btn-spinner').style.display = on ? 'block' : 'none';
+  const sb = document.getElementById('status-bar');
+  sb.classList.toggle('show', on);
+  document.getElementById('status-text').textContent =
+    mode === 'expert' ? 'Expert analysis (may take ~20s)…' :
+    mode === 'fast'   ? 'Fast scan…' : 'Analysing…';
+}
+
+// ── Results list ───────────────────────────────────────────────────────────
+function renderResults(data) {
+  const el = document.getElementById('results-content');
+  el.innerHTML = '';
+
+  if (data.summary) {
+    el.innerHTML += `<div class="summary-box">${data.summary}</div>`;
+  }
+
+  if (!detections.length) {
+    el.innerHTML += '<p style="color:var(--muted);font-size:13px">No components detected.</p>';
+    return;
+  }
+
+  el.innerHTML += `<h3>${detections.length} detection${detections.length > 1 ? 's' : ''}</h3>`;
+
+  detections.forEach((d, i) => {
+    const card = document.createElement('div');
+    card.className = 'detection-card';
+    const isStruct = d.category === 'structure';
+    const meta = [d.type_detail, d.rating, d.brand, d.estimated_dimensions]
+      .filter(Boolean).join(' · ');
+    card.innerHTML = `
+      <div class="dot" style="background:${colorFor(i)}"></div>
+      <div class="card-body">
+        <div class="card-label">${d.label}</div>
+        <div class="card-meta">
+          <span class="badge ${isStruct ? 'badge-struct' : 'badge-comp'}">${d.category}</span>
+          ${meta}
+        </div>
+      </div>`;
+    card.addEventListener('mouseenter', () => { selectedIdx = i; drawDetections(i); });
+    card.addEventListener('mouseleave', () => { selectedIdx = -1; drawDetections(); });
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.detection-card').forEach(c => c.classList.remove('highlighted'));
+      card.classList.add('highlighted');
+    });
+    el.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>
