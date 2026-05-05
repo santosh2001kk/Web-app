@@ -3,12 +3,22 @@ const { GoogleGenAI, Type } = require("@google/genai");
 const MODEL = "gemini-3.1-pro-preview";
 
 const PROMPT = `Analyse this industrial electrical panel photo.
-1. Identify all components: power breakers (MCCB/ACB), modular breakers (MCB), contactors, relays, PLCs, meters.
-2. For each component identify: precise type, brand (Schneider/ABB/Siemens/Legrand), rating if readable (e.g. 400A).
-3. Segment ALL vertical columns left to right — each gets its own bounding box.
-4. If draw-out type (Okken, Blokset), segment functional drawers too.
-Return coordinates [ymin, xmin, ymax, xmax] (0-1000).
-category = 'structure' for columns/drawers only, 'component' for everything else.`;
+
+1. Detect ALL visible components and segments. For the label field use the SPECIFIC type name — never generic names like "power breaker" or "circuit breaker":
+   - Large frame breaker on cradle → "ACB" or specific model if readable (e.g. "MasterPact MTZ", "MasterPact NT")
+   - Medium frame bolted breaker → "MCCB" or specific model (e.g. "Compact NSX", "Compact NS")
+   - Small DIN-rail breaker → "MCB" or specific model (e.g. "Acti9", "iC60", "Multi9")
+   - Switching device with coil → "Contactor"
+   - Protection relay → "Relay"
+   - Automation module → "PLC"
+   - Measurement device → "Meter"
+   - Vertical panel section → "Column" (category = structure)
+   - Draw-out tray (Okken) → "Drawer" (category = structure)
+
+2. For each component also fill: brand (Schneider/ABB/Siemens/Legrand/other), rating if readable (e.g. "400A"), type_detail if you can read the exact model.
+3. Draw a TIGHT box_2d [ymin, xmin, ymax, xmax] (0-1000) around each individual device body.
+4. One entry per device — do NOT group multiple into one box.
+category = 'structure' for Column/Drawer only, 'component' for everything else.`;
 
 async function detectCircuitBreakers(base64Image, workZone = null, safetyBuffer = null) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
