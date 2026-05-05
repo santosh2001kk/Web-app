@@ -10,19 +10,31 @@ const PROMPT = `Analyse this industrial electrical panel photo.
 Return coordinates [ymin, xmin, ymax, xmax] (0-1000).
 category = 'structure' for columns/drawers only, 'component' for everything else.`;
 
-async function detectCircuitBreakers(base64Image) {
+async function detectCircuitBreakers(base64Image, workZone = null, safetyBuffer = null) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
   const imageData = base64Image.includes(",")
     ? base64Image.split(",")[1]
     : base64Image;
 
+  let zoneText = "";
+  if (workZone && safetyBuffer) {
+    zoneText = `
+WORK ZONE (yellow box — engineer works here): ymin=${workZone.ymin} xmin=${workZone.xmin} ymax=${workZone.ymax} xmax=${workZone.xmax}
+SAFETY BUFFER (red box — extended detection zone): ymin=${safetyBuffer.ymin} xmin=${safetyBuffer.xmin} ymax=${safetyBuffer.ymax} xmax=${safetyBuffer.xmax}
+
+IMPORTANT: Only detect components whose bounding box overlaps with the Safety Buffer. Ignore everything outside.
+`;
+  }
+
+  const fullPrompt = PROMPT + zoneText;
+
   const response = await ai.models.generateContent({
     model: MODEL,
     contents: [
       {
         parts: [
-          { text: PROMPT },
+          { text: fullPrompt },
           { inlineData: { mimeType: "image/jpeg", data: imageData } },
         ],
       },

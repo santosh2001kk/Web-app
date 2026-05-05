@@ -24,7 +24,9 @@ app.post("/api/detect", upload.single("image"), async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    const result = await detectCircuitBreakers(base64Image, mode);
+    const workZone    = req.body?.workZone    || null;
+    const safetyBuffer = req.body?.safetyBuffer || null;
+    const result = await detectCircuitBreakers(base64Image, workZone, safetyBuffer);
     res.json(result);
   } catch (err) {
     console.error("[detect]", err.message);
