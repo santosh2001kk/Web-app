@@ -2,25 +2,13 @@ const { GoogleGenAI, Type } = require("@google/genai");
 
 const MODEL = "gemini-3.1-pro-preview";
 
-const PROMPT = `You are an expert electrical panel inspector.
-
-COMPONENT LABELS — use these exact names:
-- MasterPact MTZ or MasterPact NT  (large draw-out ACB)
-- Compact NSX or Compact NS        (medium MCCB)
-- Acti9 / iC60 / Multi9            (small DIN rail MCB)
-- Contactor / Relay / PLC / Meter  (other devices)
-- Column                           (vertical cubicle section — category = structure)
-- Drawer                           (draw-out tray in Okken panel — category = structure)
-
-DO NOT label cable ducts, wires, or bare enclosure panels.
-
-DETECTION RULES:
-1. Draw a TIGHT box_2d [ymin, xmin, ymax, xmax] (0-1000) around each individual component body.
-2. Detect EVERY visible component — do not skip any.
-3. For each vertical cubicle column add one entry: label="Column", category="structure".
-4. For Okken drawers add: label="Drawer", category="structure".
-5. Read rating (e.g. "400A") and brand from the device face if visible.
-6. One entry per individual device — do NOT group multiple devices into one box.`;
+const PROMPT = `Analyse this industrial electrical panel photo.
+1. Identify all components: power breakers (MCCB/ACB), modular breakers (MCB), contactors, relays, PLCs, meters.
+2. For each component identify: precise type, brand (Schneider/ABB/Siemens/Legrand), rating if readable (e.g. 400A).
+3. Segment ALL vertical columns left to right — each gets its own bounding box.
+4. If draw-out type (Okken, Blokset), segment functional drawers too.
+Return coordinates [ymin, xmin, ymax, xmax] (0-1000).
+category = 'structure' for columns/drawers only, 'component' for everything else.`;
 
 async function detectCircuitBreakers(base64Image, workZone = null, safetyBuffer = null) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
