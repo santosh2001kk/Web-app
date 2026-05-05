@@ -58,14 +58,6 @@
   .section { padding: 0 16px 16px; }
   .section label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
 
-  .mode-tabs { display: flex; gap: 6px; }
-  .mode-tab {
-    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
-    background: transparent; color: var(--muted); font-size: 12px; font-weight: 500;
-    cursor: pointer; transition: all 0.15s; text-align: center;
-  }
-  .mode-tab:hover { border-color: var(--accent); color: var(--text); }
-  .mode-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   .btn {
     display: block; width: 100%; padding: 12px;
@@ -172,15 +164,6 @@
     </div>
 
     <div class="section">
-      <label>Detection Mode</label>
-      <div class="mode-tabs">
-        <button class="mode-tab" data-mode="fast">Fast</button>
-        <button class="mode-tab active" data-mode="standard">Standard</button>
-        <button class="mode-tab" data-mode="expert">Expert</button>
-      </div>
-    </div>
-
-    <div class="section">
       <button class="btn" id="detect-btn" disabled>
         <span id="btn-text">Detect Components</span>
         <div class="spinner" id="btn-spinner"></div>
@@ -218,7 +201,6 @@ let currentFile = null;
 let currentBase64 = null;
 let detections = [];
 let selectedIdx = -1;
-let mode = 'standard';
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const PALETTE = [
@@ -344,15 +326,6 @@ function buildTag(d) {
   return parts.join(' · ');
 }
 
-// ── Mode tabs ──────────────────────────────────────────────────────────────
-document.querySelectorAll('.mode-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    mode = tab.dataset.mode;
-  });
-});
-
 // ── Detect ─────────────────────────────────────────────────────────────────
 detectBtn.addEventListener('click', async () => {
   if (!currentBase64) return;
@@ -360,7 +333,7 @@ detectBtn.addEventListener('click', async () => {
 
   try {
     const base64 = currentBase64.split(',')[1] || currentBase64;
-    const res = await fetch(`/api/detect?mode=${mode}`, {
+    const res = await fetch(`/api/detect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: base64 }),
@@ -383,9 +356,7 @@ function setLoading(on) {
   document.getElementById('btn-spinner').style.display = on ? 'block' : 'none';
   const sb = document.getElementById('status-bar');
   sb.classList.toggle('show', on);
-  document.getElementById('status-text').textContent =
-    mode === 'expert' ? 'Expert analysis (may take ~20s)…' :
-    mode === 'fast'   ? 'Fast scan…' : 'Analysing…';
+  document.getElementById('status-text').textContent = 'Analysing panel…';
 }
 
 // ── Results list ───────────────────────────────────────────────────────────
