@@ -411,6 +411,15 @@ function setLoading(on) {
 function renderResults(data) {
   const el = document.getElementById('results-content');
   el.innerHTML = '';
+  if (data.panel_type) {
+    const colors = { 'Okken': '#8b5cf6', 'PrismaSeT P': '#3b82f6', 'PrismaSeT G': '#10b981', 'Unknown': '#64748b' };
+    const col = colors[data.panel_type] || '#64748b';
+    el.innerHTML += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 12px;background:var(--bg);border:1px solid ${col}44;border-radius:8px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></div>
+      <span style="font-size:12px;color:var(--muted)">Panel Type</span>
+      <span style="font-size:13px;font-weight:700;color:${col};margin-left:auto">${data.panel_type}</span>
+    </div>`;
+  }
   if (data.summary) el.innerHTML += `<div class="summary-box">${data.summary}</div>`;
   if (!detections.length) { el.innerHTML += '<p style="color:var(--muted);font-size:13px">No components detected.</p>'; return; }
   el.innerHTML += `<h3>${detections.length} detection${detections.length > 1 ? 's' : ''}${workZone ? ' in work zone' : ''}</h3>`;

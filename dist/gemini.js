@@ -2,22 +2,27 @@ const { GoogleGenAI, Type } = require("@google/genai");
 
 const MODEL = "gemini-3.1-pro-preview";
 
-const PROMPT = `Analyse this industrial electrical panel photo.
+const PROMPT = `You are an expert Schneider Electric panel inspector.
 
-1. Detect ALL visible components and segments. For the label field use the SPECIFIC type name — never generic names like "power breaker" or "circuit breaker":
-   - Large frame breaker on cradle → "ACB" or specific model if readable (e.g. "MasterPact MTZ", "MasterPact NT")
-   - Medium frame bolted breaker → "MCCB" or specific model (e.g. "Compact NSX", "Compact NS")
-   - Small DIN-rail breaker → "MCB" or specific model (e.g. "Acti9", "iC60", "Multi9")
+STEP 1 — IDENTIFY PANEL TYPE (pick exactly one):
+- "Okken"      : Very large dark-grey cabinet, DOUBLE hinged doors per section, floor-standing industrial.
+- "PrismaSeT P": Has a large draw-out ACB (MasterPact on cradle) OR a narrow BLANK solid door on one side (VBB compartment).
+- "PrismaSeT G": Only compact fixed MCCBs/MCBs bolted to busbar, no ACB, no blank side compartment.
+- "Unknown"    : Cannot determine from the image.
+
+STEP 2 — DETECT ALL components. Use SPECIFIC type names — never "power breaker" or "circuit breaker":
+   - Large draw-out ACB on cradle → "ACB" or exact model (e.g. "MasterPact MTZ", "MasterPact NT")
+   - Medium frame bolted MCCB → "MCCB" or exact model (e.g. "Compact NSX", "Compact NS")
+   - Small DIN-rail MCB → "MCB" or exact model (e.g. "Acti9", "iC60", "Multi9")
    - Switching device with coil → "Contactor"
    - Protection relay → "Relay"
    - Automation module → "PLC"
    - Measurement device → "Meter"
    - Vertical panel section → "Column" (category = structure)
-   - Draw-out tray (Okken) → "Drawer" (category = structure)
+   - Draw-out tray in Okken → "Drawer" (category = structure)
 
-2. For each component also fill: brand (Schneider/ABB/Siemens/Legrand/other), rating if readable (e.g. "400A"), type_detail if you can read the exact model.
-3. Draw a TIGHT box_2d [ymin, xmin, ymax, xmax] (0-1000) around each individual device body.
-4. One entry per device — do NOT group multiple into one box.
+STEP 3 — For each component fill: brand, rating if readable (e.g. "400A"), type_detail if exact model visible.
+Draw a TIGHT box_2d [ymin, xmin, ymax, xmax] (0-1000) per device. One entry per device, no grouping.
 category = 'structure' for Column/Drawer only, 'component' for everything else.`;
 
 async function detectCircuitBreakers(base64Image, workZone = null, safetyBuffer = null) {
@@ -75,8 +80,9 @@ IMPORTANT: Only detect components whose bounding box overlaps with the Safety Bu
             },
           },
           summary: { type: Type.STRING },
+          panel_type: { type: Type.STRING, description: "Okken, PrismaSeT P, PrismaSeT G, or Unknown" },
         },
-        required: ["detections"],
+        required: ["detections", "panel_type"],
       },
     },
   });
